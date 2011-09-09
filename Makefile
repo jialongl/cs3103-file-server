@@ -1,7 +1,10 @@
-all: server client
+all: fileserver client
 
-server: server.c
-	gcc -o fileserver server.c -lpthread -lnsl -lsocket
+fileserver: server.c
+	gcc -g -o fileserver server.c -std=c99 -lpthread -lnsl #-lsocket
 
 client: client.c
-	gcc -o client client.c -lpthread -lnsl -lsocket
+	gcc -o client client.c -lpthread -lnsl #-lsocket
+
+clean:
+	rm fileserver client

@@ -33,8 +33,7 @@ int main(int argc, char* argv[]) {
 	if (bind(listenSd,
 			 (struct sockaddr *) &serverAddr,
 			 sizeof(serverAddr)) == -1) {
-		perror("Error with bind().\n");
-		// fprintf(stderr, "Error with bind().\n");
+		fprintf(stderr, "Error with bind().\n");
 		exit(EXIT_CODE_ERROR);
 	}
 
@@ -50,7 +49,7 @@ int main(int argc, char* argv[]) {
 			exit(EXIT_CODE_ERROR);
 		}
 		else
-			printf("I received a new connection!");
+			fprintf(stderr, "I received a new connection!");
 	}
 
 	return EXIT_CODE_CLEAN;
