@@ -1,3 +1,5 @@
-*
-!.c
-!Makefile
+.DS_Store
+*~
+fileserver
+client
+*.dSYM/

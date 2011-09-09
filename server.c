@@ -1,15 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
-
 #include <unistd.h>
 
-#define EXIT_CODE_ERROR 500 // 500: Internal server error.... :p
-#define EXIT_CODE_CLEAN 200 // 200: OK
-
+#include "shared_constants.h"
+#include "server_constants.h"
 
 int main(int argc, char* argv[]) {
 	int listenSd;		// listening socket
@@ -17,8 +16,23 @@ int main(int argc, char* argv[]) {
 	pid_t childpid;
 	int port;
 	struct sockaddr_in serverAddr;
+	char serverBuffer[100];
 
-	port = atoi(argv[1]);
+	fprintf(stderr, "Initializing server...\n");
+
+	if (argc == 1) {
+		port = DEFAULT_SERVER_PORT;
+		fprintf(stderr, "Port no. not specified, using default: 6789\n");
+
+	} else if (argc == 2) {
+		port = atoi(argv[1]);
+
+	} else {
+		fprintf(stderr, "Too many arguments.\n");
+		exit(EXIT_CODE_ERROR);
+	}
+
+	fprintf(stderr, "Port no: %d\n", port);
 
 	listenSd = socket(AF_INET, SOCK_STREAM, 0); // `man socket` lah
 	if (listenSd == -1) {
@@ -33,23 +47,29 @@ int main(int argc, char* argv[]) {
 	if (bind(listenSd,
 			 (struct sockaddr *) &serverAddr,
 			 sizeof(serverAddr)) == -1) {
-		fprintf(stderr, "Error with bind().\n");
+//		perror("Error with bind(2).\n");
+ 		fprintf(stderr, "Error with bind().\n");
 		exit(EXIT_CODE_ERROR);
 	}
 
-	if (listen(listenSd, 1024)) {
+	if (listen(listenSd, MAX_NUM_PENDING_CONNECTIONS)) {
 		fprintf(stderr, "Error with listen().\n");
 		exit(EXIT_CODE_ERROR);
 	}
+	fprintf(stderr, "Listening...\n");
 
+	// start to run forever for accept-communicate-close cycle.
 	while (1) {
 		connectionSd = accept(listenSd, NULL, NULL);
 		if (connectionSd == -1) {
 			fprintf(stderr, "Error with accept().\n");
 			exit(EXIT_CODE_ERROR);
 		}
-		else
-			fprintf(stderr, "I received a new connection!");
+
+		else if (recv(connectionSd, serverBuffer, sizeof(serverBuffer), 0) != -1) {
+			printf("Client <client_id> connecting: %s\n", serverBuffer);
+// 			fprintf(stderr, "Received %s connecting from\n", serverBuffer);
+		}
 	}
 
 	return EXIT_CODE_CLEAN;
