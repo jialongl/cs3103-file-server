@@ -74,8 +74,9 @@ int main(int argc, char* argv[]) {
 		else {
 			// new TCP connection with a client established.
 			// TODO: fork here.
-			socklen_t len;
+
 			struct sockaddr_storage clientAddr;
+			socklen_t len = sizeof(clientAddr);
 			char clientIPString[INET_ADDRSTRLEN];
 			int clientPort;
 
