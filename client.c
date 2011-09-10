@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -19,6 +20,7 @@ int main(int argc, char* argv[]) {
 	char *serverIP;
 	struct sockaddr_in serverAddr;
 	char senderBuffer[BUFFER_SIZE];
+	char serverResponseBuffer[20];
 
 	if (argc == 3) {
 		serverPort = atoi(argv[2]);
@@ -29,7 +31,7 @@ int main(int argc, char* argv[]) {
 // 		port = atoi(argv[1]);
 
 	} else {
-		fprintf(stderr, "Wrong arguments.\n");
+		fprintf(stderr, "Wrong number of arguments.\n");
 		exit(EXIT_CODE_ERROR);
 	}
 
@@ -51,33 +53,34 @@ int main(int argc, char* argv[]) {
 		exit(EXIT_CODE_ERROR);
 	}
 
-	gethostname(senderBuffer, BUFFER_SIZE);
-	struct hostent *host;
-	host = gethostbyname(senderBuffer);
+	// gethostname(senderBuffer, BUFFER_SIZE);
+	// struct hostent *host;
+	// host = gethostbyname(senderBuffer);
 
-	struct in_addr myAddr;
-	char *myIP;
-	while (*host->h_addr_list) {
-		bcopy(*host->h_addr_list++, (char *) &myAddr, sizeof(myAddr));
-	}
-	myIP = inet_ntoa(myAddr);
+	// struct in_addr myAddr;
+	// char *myIP;
+	// while (*host->h_addr_list) {
+	// 	bcopy(*host->h_addr_list++, (char *) &myAddr, sizeof(myAddr));
+	// }
+	// myIP = inet_ntoa(myAddr);
 
-	if (send(connectionSd, myIP, strlen(myIP), 0) != strlen(myIP)) {
-		fprintf(stderr, "Error: send() sent diff no. of bytes from expected.\n");
-		exit(EXIT_CODE_ERROR);
-	}
+	// if (send(connectionSd, myIP, strlen(myIP), 0) != strlen(myIP)) {
+	// 	fprintf(stderr, "Error: send() sent diff no. of bytes from expected.\n");
+	// 	exit(EXIT_CODE_ERROR);
+	// }
 
-	// start to run forever to type commands.
+	// start to type commands forever.
+	// clear buffers first
+	bzero(senderBuffer, BUFFER_SIZE);
 	while (1) {
-		bzero(senderBuffer, BUFFER_SIZE);
 		fgets(senderBuffer, BUFFER_SIZE, stdin);
 
 		send(connectionSd, senderBuffer, strlen(senderBuffer), 0); // do not send bytes not inited by user input.
-		bzero(senderBuffer, BUFFER_SIZE);
-		int n = read(connectionSd, senderBuffer, BUFFER_SIZE);
-		if (n < 0)
-			fprintf(stderr, "ERROR reading from socket");
-		fprintf(stderr, "Echo from server: %s", senderBuffer);
+		bzero(senderBuffer, strlen(senderBuffer));
+		// int n = recv(connectionSd, serverResponseBuffer, BUFFER_SIZE, 0);
+		// if (n < 0)
+		// 	fprintf(stderr, "ERROR reading from socket");
+		// fprintf(stderr, "Echo from server: %s", serverResponseBuffer);
 	}
 
 	return EXIT_CODE_CLEAN;

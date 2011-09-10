@@ -1,9 +1,9 @@
 all: fileserver client
 
 fileserver: server.c
-	gcc -g -o fileserver server.c -std=c99
+	gcc -g -o fileserver server.c
 client: client.c
-	gcc -g -o client client.c -std=c99
+	gcc -g -o client client.c
 
 # gcc -g -o fileserver server.c -std=c99 -lpthread -lnsl -lsocket
 # gcc -g -o client client.c -std=c99 -lpthread -lnsl -lsocket
