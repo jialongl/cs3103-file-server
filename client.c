@@ -11,13 +11,14 @@
 
 #include "shared_constants.h"
 
+#define BUFFER_SIZE 100
+
 int main(int argc, char* argv[]) {
 	int connectionSd;
 	int serverPort, clientPort;
 	char *serverIP;
 	struct sockaddr_in serverAddr;
-	char senderBuffer[100];
-	int bufferLength = sizeof(senderBuffer);
+	char senderBuffer[BUFFER_SIZE];
 
 	if (argc == 3) {
 		serverPort = atoi(argv[2]);
@@ -50,7 +51,7 @@ int main(int argc, char* argv[]) {
 		exit(EXIT_CODE_ERROR);
 	}
 
-	gethostname(senderBuffer, bufferLength);
+	gethostname(senderBuffer, BUFFER_SIZE);
 	struct hostent *host;
 	host = gethostbyname(senderBuffer);
 
@@ -58,13 +59,25 @@ int main(int argc, char* argv[]) {
 	char *myIP;
 	while (*host->h_addr_list) {
 		bcopy(*host->h_addr_list++, (char *) &myAddr, sizeof(myAddr));
-
 	}
 	myIP = inet_ntoa(myAddr);
 
 	if (send(connectionSd, myIP, strlen(myIP), 0) != strlen(myIP)) {
 		fprintf(stderr, "Error: send() sent diff no. of bytes from expected.\n");
 		exit(EXIT_CODE_ERROR);
+	}
+
+	// start to run forever to type commands.
+	while (1) {
+		bzero(senderBuffer, BUFFER_SIZE);
+		fgets(senderBuffer, BUFFER_SIZE, stdin);
+
+		send(connectionSd, senderBuffer, strlen(senderBuffer), 0); // do not send bytes not inited by user input.
+		bzero(senderBuffer, BUFFER_SIZE);
+		int n = read(connectionSd, senderBuffer, BUFFER_SIZE);
+		if (n < 0)
+			fprintf(stderr, "ERROR reading from socket");
+		fprintf(stderr, "Echo from server: %s", senderBuffer);
 	}
 
 	return EXIT_CODE_CLEAN;
