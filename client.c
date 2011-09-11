@@ -6,20 +6,26 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
-#include <netinet/in.h>
-#include <netdb.h>
+
 #include <unistd.h>
+#include <signal.h>
 
 #include "shared_constants.h"
 
-int main(int argc, char* argv[]) {
-	int connectionSd;
-	int serverPort, clientPort;
-	char *serverIP;
-	struct sockaddr_in serverAddr;
-	char senderBuffer[COMMUNICATION_BUFFER_SIZE];
-	char serverResponseBuffer[20];
+int connectionSocket;
+int serverPort, clientPort;
+char *serverIP;
+struct sockaddr_in serverAddr;
+char senderBuffer[COMMUNICATION_BUFFER_SIZE];
+char serverResponseBuffer[20];
 
+void willApplicationTerminate() {
+	printf("Client received SIGINT, exiting...\n");
+	close(connectionSocket);
+	exit(EXIT_CODE_CLEAN);
+}
+
+int main(int argc, char* argv[]) {
 	if (argc == 3) {
 		serverPort = atoi(argv[2]);
 		serverIP = argv[1];
@@ -33,18 +39,19 @@ int main(int argc, char* argv[]) {
 		exit(EXIT_CODE_ERROR);
 	}
 
-	fprintf(stderr, "Initializing client...\n");
-	fprintf(stderr, "Client ID: iddddddddddd.\n");
-	fprintf(stderr, "Server: %s:%d\n", serverIP, serverPort);
+	printf("Initializing client...\n");
+	printf("Client ID: iddddddddddd.\n");
+	printf("Server: %s:%d\n", serverIP, serverPort);
 
-	connectionSd = socket(AF_INET, SOCK_STREAM, 0);
+	signal(SIGINT, willApplicationTerminate);
+	connectionSocket = socket(AF_INET, SOCK_STREAM, 0);
 
 	serverAddr.sin_family = AF_INET;
 	serverAddr.sin_addr.s_addr = inet_addr(serverIP);
 	serverAddr.sin_port = htons(serverPort);
 
 	// connect to server
-	if (connect(connectionSd,
+	if (connect(connectionSocket,
 				(struct sockaddr*) &serverAddr,
 				sizeof(serverAddr)) == -1) {
 		fprintf(stderr, "Error with connect().\n");
@@ -62,7 +69,7 @@ int main(int argc, char* argv[]) {
 	// }
 	// myIP = inet_ntoa(myAddr);
 
-	// if (send(connectionSd, myIP, strlen(myIP), 0) != strlen(myIP)) {
+	// if (send(connectionSocket, myIP, strlen(myIP), 0) != strlen(myIP)) {
 	// 	fprintf(stderr, "Error: send() sent diff no. of bytes from expected.\n");
 	// 	exit(EXIT_CODE_ERROR);
 	// }
@@ -73,9 +80,9 @@ int main(int argc, char* argv[]) {
 	while (1) {
 		fgets(senderBuffer, COMMUNICATION_BUFFER_SIZE, stdin);
 
-		send(connectionSd, senderBuffer, strlen(senderBuffer), 0); // do not send bytes not inited by user input.
+		send(connectionSocket, senderBuffer, strlen(senderBuffer), 0); // do not send bytes not inited by user input.
 		bzero(senderBuffer, strlen(senderBuffer));
-		// int n = recv(connectionSd, serverResponseBuffer, COMMUNICATION_BUFFER_SIZE, 0);
+		// int n = recv(connectionSocket, serverResponseBuffer, COMMUNICATION_BUFFER_SIZE, 0);
 		// if (n < 0)
 		// 	fprintf(stderr, "ERROR reading from socket");
 		// fprintf(stderr, "Echo from server: %s", serverResponseBuffer);

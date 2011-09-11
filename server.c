@@ -5,7 +5,9 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
+
 #include <unistd.h>
+#include <signal.h>
 
 #include "shared_constants.h"
 #include "server_constants.h"
@@ -21,7 +23,7 @@ pid_t childpid;
 
 // EFFECTS: closes all sockets this application uses.
 void willApplicationTerminate () {
-	printf("Server is going down!\n");
+	printf("Server received SIGINT, exiting...\n");
 	close(connectionSocket);
 	close(listenSocket);
 	exit(EXIT_CODE_CLEAN);
@@ -38,7 +40,7 @@ int main(int argc, char* argv[]) {
 		serverPort = atoi(argv[1]);
 
 	} else {
-		printf("Too many arguments.\n");
+		fprintf(stderr, "Too many arguments.\n");
 		exit(EXIT_CODE_ERROR);
 	}
 	signal(SIGINT, willApplicationTerminate); // Close all sockets and exit when application received SIGTERM
