@@ -12,14 +12,12 @@
 
 #include "shared_constants.h"
 
-#define BUFFER_SIZE 100
-
 int main(int argc, char* argv[]) {
 	int connectionSd;
 	int serverPort, clientPort;
 	char *serverIP;
 	struct sockaddr_in serverAddr;
-	char senderBuffer[BUFFER_SIZE];
+	char senderBuffer[COMMUNICATION_BUFFER_SIZE];
 	char serverResponseBuffer[20];
 
 	if (argc == 3) {
@@ -53,7 +51,7 @@ int main(int argc, char* argv[]) {
 		exit(EXIT_CODE_ERROR);
 	}
 
-	// gethostname(senderBuffer, BUFFER_SIZE);
+	// gethostname(senderBuffer, COMMUNICATION_BUFFER_SIZE);
 	// struct hostent *host;
 	// host = gethostbyname(senderBuffer);
 
@@ -71,13 +69,13 @@ int main(int argc, char* argv[]) {
 
 	// start to type commands forever.
 	// clear buffers first
-	bzero(senderBuffer, BUFFER_SIZE);
+	bzero(senderBuffer, COMMUNICATION_BUFFER_SIZE);
 	while (1) {
-		fgets(senderBuffer, BUFFER_SIZE, stdin);
+		fgets(senderBuffer, COMMUNICATION_BUFFER_SIZE, stdin);
 
 		send(connectionSd, senderBuffer, strlen(senderBuffer), 0); // do not send bytes not inited by user input.
 		bzero(senderBuffer, strlen(senderBuffer));
-		// int n = recv(connectionSd, serverResponseBuffer, BUFFER_SIZE, 0);
+		// int n = recv(connectionSd, serverResponseBuffer, COMMUNICATION_BUFFER_SIZE, 0);
 		// if (n < 0)
 		// 	fprintf(stderr, "ERROR reading from socket");
 		// fprintf(stderr, "Echo from server: %s", serverResponseBuffer);
