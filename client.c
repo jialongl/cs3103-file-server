@@ -17,7 +17,7 @@ int serverPort, clientPort;
 char *serverIP;
 struct sockaddr_in serverAddr;
 char senderBuffer[COMMUNICATION_BUFFER_SIZE];
-char serverResponseBuffer[20];
+char receiverBuffer[COMMUNICATION_BUFFER_SIZE];
 
 void willApplicationTerminate() {
 	printf("Client received SIGINT, exiting...\n");
@@ -30,10 +30,6 @@ int main(int argc, char* argv[]) {
 		serverPort = atoi(argv[2]);
 		serverIP = argv[1];
 
-// 		fprintf(stderr, "Port no. not specified, using default: 6789\n");
-// 	} else if (argc == 2) {
-// 		port = atoi(argv[1]);
-
 	} else {
 		fprintf(stderr, "Wrong number of arguments.\n");
 		exit(EXIT_CODE_ERROR);
@@ -41,7 +37,7 @@ int main(int argc, char* argv[]) {
 
 	printf("Initializing client...\n");
 	printf("Client ID: iddddddddddd.\n");
-	printf("Server: %s:%d\n", serverIP, serverPort);
+	printf("Server: %s#%d\n", serverIP, serverPort);
 
 	signal(SIGINT, willApplicationTerminate);
 	connectionSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -75,18 +71,18 @@ int main(int argc, char* argv[]) {
 	// }
 
 	// start to type commands forever.
-	// clear buffers first
 	bzero(senderBuffer, COMMUNICATION_BUFFER_SIZE);
-	while (1) {
-		fgets(senderBuffer, COMMUNICATION_BUFFER_SIZE, stdin);
+	while (fgets(senderBuffer, COMMUNICATION_BUFFER_SIZE, stdin) != NULL) {
+		send(connectionSocket, senderBuffer, COMMUNICATION_BUFFER_SIZE, 0);
+		// send(connectionSocket, senderBuffer, strlen(senderBuffer), 0); // do not send bytes not inited by user input.
+		bzero(senderBuffer, COMMUNICATION_BUFFER_SIZE);
 
-		send(connectionSocket, senderBuffer, strlen(senderBuffer), 0); // do not send bytes not inited by user input.
-		bzero(senderBuffer, strlen(senderBuffer));
-		// int n = recv(connectionSocket, serverResponseBuffer, COMMUNICATION_BUFFER_SIZE, 0);
-		// if (n < 0)
-		// 	fprintf(stderr, "ERROR reading from socket");
-		// fprintf(stderr, "Echo from server: %s", serverResponseBuffer);
+		recv(connectionSocket, receiverBuffer, COMMUNICATION_BUFFER_SIZE, 0);
+		// receiverBuffer[COMMUNICATION_BUFFER_SIZE-1] = '\0';
+		printf("%s", receiverBuffer);
+		bzero(receiverBuffer, COMMUNICATION_BUFFER_SIZE);
 	}
+	printf("I am out!\n");
 
 	return EXIT_CODE_CLEAN;
 }

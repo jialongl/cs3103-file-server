@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -27,6 +28,15 @@ void willApplicationTerminate () {
 	close(connectionSocket);
 	close(listenSocket);
 	exit(EXIT_CODE_CLEAN);
+}
+
+// REQUIRES: receiverBuffer[] populated with a COMMAND as null-terminated string .
+// EFFECTS: executes the COMMAND logic, populate senderBuffer[] should the COMMAND return any text.
+void executeFileserverCommand() {
+	if (strncmp(receiverBuffer, "help", 4) == 0) {
+		// TODO: implement the execution of commands here.
+		strcpy(senderBuffer, "wahhaaaaaaaaaa!!!\n");
+	}
 }
 
 int main(int argc, char* argv[]) {
@@ -74,8 +84,6 @@ int main(int argc, char* argv[]) {
 
 	// start to run forever for accept-communicate-close cycle.
 	while (1) {
-		// clear buffers first
-		bzero(receiverBuffer, sizeof(receiverBuffer));
 
 		connectionSocket = accept(listenSocket, NULL, NULL);
 		if (connectionSocket == -1) {
@@ -101,20 +109,23 @@ int main(int argc, char* argv[]) {
 			}
 			// else if (clientAddr.ss_family == AF_INET6) {
 
-			// 	}
+			//	}
 
 			printf("New client <client_id> connected from: %s#%d\n", clientIPString, clientPort);
-		recv:
-			if (recv(connectionSocket, receiverBuffer, sizeof(receiverBuffer), 0) != -1) {
-				printf("%s", receiverBuffer);
-				bzero(receiverBuffer, sizeof(receiverBuffer));
-				goto recv;
-			}
-		}
 
-		// close(connectionSocket);
+			while(recv(connectionSocket, receiverBuffer, COMMUNICATION_BUFFER_SIZE, 0) != -1) {
+				// receiverBuffer[COMMUNICATION_BUFFER_SIZE-1] = '\0';
+				printf("%s", receiverBuffer);
+				bzero(senderBuffer, COMMUNICATION_BUFFER_SIZE);
+				executeFileserverCommand();
+				bzero(receiverBuffer, COMMUNICATION_BUFFER_SIZE);
+
+				send(connectionSocket, senderBuffer, COMMUNICATION_BUFFER_SIZE, 0);
+			}
+			printf("Client <client_id> closed connection.\n");
+			close(connectionSocket);
+		}
 	}
 
 	return EXIT_CODE_CLEAN;
 }
-
