@@ -17,6 +17,7 @@ int listenSocket;
 int connectionSocket;
 int serverPort;
 struct sockaddr_in serverAddr;
+struct sockaddr_storage clientAddr;
 
 char senderBuffer[COMMUNICATION_BUFFER_SIZE];
 char receiverBuffer[COMMUNICATION_BUFFER_SIZE];
@@ -84,8 +85,9 @@ int main(int argc, char* argv[]) {
 
 	// start to run forever for accept-communicate-close cycle.
 	while (1) {
+		socklen_t len = sizeof(clientAddr);
+		connectionSocket = accept(listenSocket, (struct sockaddr*) &clientAddr, &len);
 
-		connectionSocket = accept(listenSocket, NULL, NULL);
 		if (connectionSocket == -1) {
 			perror("accept()");
 			// fprintf(stderr, "Error with accept().\n");
@@ -96,12 +98,9 @@ int main(int argc, char* argv[]) {
 			// new TCP connection with a client established.
 			// TODO: fork here.
 
-			struct sockaddr_storage clientAddr;
-			socklen_t len = sizeof(clientAddr);
 			char clientIPString[INET_ADDRSTRLEN];
 			int clientPort;
 
-			getpeername(connectionSocket, (struct sockaddr*) &clientAddr, &len);
 			if (clientAddr.ss_family == AF_INET) { // IPv4
 				struct sockaddr_in *addr = (struct sockaddr_in*) &clientAddr;
 				clientPort = addr->sin_port;
