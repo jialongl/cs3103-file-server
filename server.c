@@ -61,7 +61,7 @@ void executeFileserverCommand() {
 	else if ((strncmp(receiverBuffer, COMMAND_LIST_AVAILABLE_FILES, strlen(COMMAND_LIST_AVAILABLE_FILES)) == 0) &&
 			 (receiverBuffer[strlen(COMMAND_LIST_AVAILABLE_FILES)] == '\n')) {
 
-		char sprintfBuffer[100];
+		char sprintfBuffer[60];
 		for (int i=0; i<numberOfRecords; i++) {
 			sprintf(sprintfBuffer, "File %d:\t%s\t%s\n",
 					sharedFileRecords[i].id,

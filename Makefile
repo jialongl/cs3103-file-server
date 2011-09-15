@@ -13,7 +13,7 @@ rs:
 	./fileserver 8888
 # run client
 rc:
-	./client 127.0.0.1 8888
+	./client 127.0.0.1 8888 < clientCommandsInput
 
 kill:
 	killall "./fileserver" "./client"

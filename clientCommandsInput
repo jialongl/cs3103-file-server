@@ -1,0 +1,6 @@
+help
+reg fileserver
+list
+reg client
+list
+quit
