@@ -3,7 +3,7 @@
 
 #define MAX_NUM_SHARED_FILE_RECORDS 100
 #define MAX_NUM_TOKENS 3
-#define MAX_TOKEN_LENGTH 10
+#define MAX_TOKEN_LENGTH 32
 
 typedef struct {
 	int id;
