@@ -72,14 +72,15 @@ int main(int argc, char* argv[]) {
 
 	// start to type commands forever.
 	bzero(senderBuffer, COMMUNICATION_BUFFER_SIZE);
+	printf("> ");
 	while (fgets(senderBuffer, COMMUNICATION_BUFFER_SIZE, stdin) != NULL) {
-		send(connectionSocket, senderBuffer, COMMUNICATION_BUFFER_SIZE, 0);
-		// send(connectionSocket, senderBuffer, strlen(senderBuffer), 0); // do not send bytes not inited by user input.
+		// send(connectionSocket, senderBuffer, COMMUNICATION_BUFFER_SIZE, 0);
+		send(connectionSocket, senderBuffer, strlen(senderBuffer), 0); // do not send bytes not inited by user input.
 		bzero(senderBuffer, COMMUNICATION_BUFFER_SIZE);
 
 		recv(connectionSocket, receiverBuffer, COMMUNICATION_BUFFER_SIZE, 0);
 		// receiverBuffer[COMMUNICATION_BUFFER_SIZE-1] = '\0';
-		printf("%s", receiverBuffer);
+		printf("%s> ", receiverBuffer);
 		bzero(receiverBuffer, COMMUNICATION_BUFFER_SIZE);
 	}
 	printf("I am out!\n");
