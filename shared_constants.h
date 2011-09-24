@@ -9,3 +9,15 @@
 #define COMMAND_REGISTER_FILE "reg"
 #define COMMAND_DOWNLOAD_FILE "get"
 #define COMMAND_QUIT "quit"
+
+#define MSG_MAX_NUM_CLIENTS_REACHED "server doesn't server more than 10 clients"
+#define MSG_ONLY_SUPPORT_IPV4 "only support IPv4 connection"
+
+#define MAX_CLIENT_ID_STRLEN 12
+#define MAX_COMMAND_TOKEN_STRLEN 32
+
+typedef struct {
+	int id;
+	char owner[MAX_CLIENT_ID_STRLEN]; // the file could be on "server", "c1", "c2" etc.
+	char filename[MAX_COMMAND_TOKEN_STRLEN];
+} SharedFileRecord;
