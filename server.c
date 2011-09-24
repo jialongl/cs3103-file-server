@@ -16,10 +16,13 @@
 
 int listenSocket;
 int connectionSockets[MAX_NUM_CONNECTED_CLIENTS];
+int newConnectionSocket; // used as a temp.
+
 int serverPort;
 int clientPorts[MAX_NUM_CONNECTED_CLIENTS];
 struct sockaddr_in serverSockaddr;
 struct sockaddr_storage clientSockaddrs[MAX_NUM_CONNECTED_CLIENTS];
+struct sockaddr_storage newClientSockaddr; // used as a temp.
 
 SharedFileRecord sharedFileRecords[MAX_NUM_SHARED_FILE_RECORDS];
 int numberOfRecords = 0;
@@ -51,7 +54,6 @@ void tokenizeString (char *string, char *delim, char tokens[MAX_NUM_COMMAND_TOKE
 
 	thisToken = strtok(string, delim);
 	while (thisToken != NULL && *numberOfTokens < MAX_NUM_COMMAND_TOKENS) {
-		printf("token %d=%s", *numberOfTokens, thisToken);
 		strncpy(tokens[*numberOfTokens], thisToken, MAX_COMMAND_TOKEN_STRLEN);
 		(*numberOfTokens)++;
 		thisToken = strtok(NULL, delim);
@@ -122,6 +124,8 @@ void executeFileserverCommand(int clientIndex) {
 	else if (((strncmp(receiverBuffer, COMMAND_QUIT, strlen(COMMAND_QUIT)) == 0) && (receiverBuffer[strlen(COMMAND_QUIT)] == '\n')) ||
 			 (strlen(receiverBuffer) == 0)) {
 		// using "quit" command or Ctrl-D
+		// TODO: clean up files registered by that client
+
 		close(connectionSockets[clientIndex]);
 		connectionSockets[clientIndex] = -1; // mark as "released"/"re-usable"
 	}
@@ -130,13 +134,16 @@ void executeFileserverCommand(int clientIndex) {
 	}
 }
 
-void* handleNewConnection() {
-	// ------------- each thread handles one particluar connection. -------------
+int nextClientIndexToAllocate() {
+	for (int i=0; i<MAX_NUM_CONNECTED_CLIENTS; i++)
+		if (connectionSockets[i] == -1)
+			return i;
+	return NO_MORE_CLIENTS_SHOULD_CONNECT;
+}
 
-	pthread_mutex_lock(&connectedClientsCounterMutex);
-		int clientIndex = numberOfConnectedClients;
-		numberOfConnectedClients++;
-	pthread_mutex_unlock(&connectedClientsCounterMutex);
+void* handleNewConnection(void* clientIndexArg) {
+	// ------------- each thread handles one particluar connection. -------------
+	int clientIndex = (int) clientIndexArg;
 
 	displayNewClientConnectedMsg(clientIndex);
 	send(connectionSockets[clientIndex], clientIDStrings[clientIndex], INET_ADDRSTRLEN, 0);
@@ -151,20 +158,13 @@ void* handleNewConnection() {
 		send(connectionSockets[clientIndex], senderBuffer, COMMUNICATION_BUFFER_SIZE, 0);
 	}
 
-	// from here, connectionSockets[clientIndex] is closed.
+	// from here, connectionSockets[clientIndex] is closed (by executeFileserverCommand()).
 	pthread_mutex_lock(&connectedClientsCounterMutex);
-		numberOfConnectedClients--;
+	numberOfConnectedClients--;
 	pthread_mutex_unlock(&connectedClientsCounterMutex);
 
 	printf("Client \"%s\" closed connection.\n", clientIDStrings[clientIndex]);
 	pthread_exit(NULL); // one thread handles one connectionSocket, so it exits after the socket is closed.
-}
-
-int nextClientIndexToAllocate() {
-	for (int i=0; i<MAX_NUM_CONNECTED_CLIENTS; i++)
-		if (connectionSockets[i] == -1)
-			return i;
-	return -1;
 }
 
 int main(int argc, char* argv[]) {
@@ -214,37 +214,40 @@ int main(int argc, char* argv[]) {
 	// start to run forever for accept-communicate-close cycle.
 	while (1) {
 		socklen_t len = sizeof(struct sockaddr_storage);
-		int nextClientIndex = nextClientIndexToAllocate();
-		connectionSockets[nextClientIndex] = accept(listenSocket, (struct sockaddr*) &clientSockaddrs[nextClientIndex], &len);
+		newConnectionSocket = accept(listenSocket, (struct sockaddr*) &newClientSockaddr, &len);
 
-		if (connectionSockets[nextClientIndex] == -1) {
+		if (newConnectionSocket == -1) {
 			perror("accept()");
 			// fprintf(stderr, "Error with accept().\n");
 			exit(EXIT_CODE_ERROR);
 		}
-
-		if (clientSockaddrs[nextClientIndex].ss_family != AF_INET) {
+		else if (newClientSockaddr.ss_family != AF_INET) {
 			strcpy(senderBuffer, MSG_ONLY_SUPPORT_IPV4);
-			send(connectionSockets[nextClientIndex], senderBuffer, COMMUNICATION_BUFFER_SIZE, 0);
-			close(connectionSockets[nextClientIndex]);
-			connectionSockets[nextClientIndex] = -1;
+			send(newConnectionSocket, senderBuffer, COMMUNICATION_BUFFER_SIZE, 0);
+			close(newConnectionSocket);
 		}
 		else if (numberOfConnectedClients == MAX_NUM_CONNECTED_CLIENTS) {
+		// else if (nextClientIndexToAllocate() == NO_MORE_CLIENTS_SHOULD_CONNECT) {
 			strcpy(senderBuffer, MSG_MAX_NUM_CLIENTS_REACHED);
-			send(connectionSockets[nextClientIndex], senderBuffer, COMMUNICATION_BUFFER_SIZE, 0);
-			close(connectionSockets[nextClientIndex]);
-			connectionSockets[nextClientIndex] = -1;
+			send(newConnectionSocket, senderBuffer, COMMUNICATION_BUFFER_SIZE, 0);
+			close(newConnectionSocket);
 		}
 		else {
 			// new TCP connection with a client established.
+			int clientIndex = nextClientIndexToAllocate();
+			connectionSockets[clientIndex] = newConnectionSocket;
+			clientSockaddrs[clientIndex] = newClientSockaddr;
+
+			pthread_mutex_lock(&connectedClientsCounterMutex);
+				numberOfConnectedClients++;
+			pthread_mutex_unlock(&connectedClientsCounterMutex);
 
 			pthread_t newConnectionThread;
-			if (pthread_create(&newConnectionThread, NULL, handleNewConnection, NULL) != 0) {
+			if (pthread_create(&newConnectionThread, NULL, handleNewConnection, (void*)clientIndex) != 0) {
 				perror("pthread_create()");
 			}
 			// nothing to be done for parent thread -- just get out of the loop and listen for another connection.
 		}
 	}
-
 	return EXIT_CODE_CLEAN;
 }
