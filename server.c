@@ -96,6 +96,16 @@ void executeFileserverCommand(int clientIndex) {
 	else if ((strncmp(receiverBuffer, COMMAND_LIST_MY_SHARED_FILES, 5) == 0) &&
 			 (receiverBuffer[strlen(COMMAND_LIST_MY_SHARED_FILES)] == '\n')) {
 
+		char sprintfBuffer[sizeof(SharedFileRecord)];
+		for (int i=0; i<numberOfRecords; i++) {
+			if (strcmp(sharedFileRecords[i].owner, clientIDStrings[clientIndex]) == 0) {
+				sprintf(sprintfBuffer, "File %d:\t%s\t%s\n",
+						sharedFileRecords[i].id,
+						sharedFileRecords[i].owner,
+						sharedFileRecords[i].filename);
+				strncat(senderBuffer, sprintfBuffer, COMMUNICATION_BUFFER_SIZE);
+			}
+		}
 	}
 	else if (strncmp(receiverBuffer, COMMAND_REGISTER_FILE, strlen(COMMAND_REGISTER_FILE)) == 0) {
 		if (receiverBuffer[strlen(COMMAND_REGISTER_FILE)] != ' ') {
