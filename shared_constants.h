@@ -1,7 +1,7 @@
 #define EXIT_CODE_ERROR 500 // 500: Internal server error.... :p
 #define EXIT_CODE_CLEAN 200 // 200: OK
 
-#define COMMUNICATION_BUFFER_SIZE 1024
+#define CMD_BUFFER_SIZE 1024
 
 #define COMMAND_HELP "help"
 #define COMMAND_LIST_AVAILABLE_FILES "list"
@@ -17,7 +17,7 @@
 #define MAX_COMMAND_TOKEN_STRLEN 32
 
 typedef struct {
-	int id;
+	short valid;
 	char owner[MAX_CLIENT_ID_STRLEN]; // the file could be on "server", "c1", "c2" etc.
 	char filename[MAX_COMMAND_TOKEN_STRLEN];
 } SharedFileRecord;
