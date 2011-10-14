@@ -2,6 +2,7 @@
 #define EXIT_CODE_CLEAN 200 // 200: OK
 
 #define CMD_BUFFER_SIZE 1024
+#define FILE_TRANSMISSION_BUFFER_SIZE 1024
 
 #define COMMAND_HELP "help"
 #define COMMAND_LIST_AVAILABLE_FILES "list"
@@ -17,7 +18,34 @@
 #define MAX_COMMAND_TOKEN_STRLEN 32
 
 typedef struct {
-	short valid;
+	int vacant;
 	char owner[MAX_CLIENT_ID_STRLEN]; // the file could be on "server", "c1", "c2" etc.
 	char filename[MAX_COMMAND_TOKEN_STRLEN];
 } SharedFileRecord;
+
+typedef struct {
+	int vacant;
+	char fileHostIPAddr[INET_ADDRSTRLEN];
+	int  fileHostPort;
+	char filename[MAX_COMMAND_TOKEN_STRLEN];
+} RequestedFileInfo;
+
+#define DEFAULT_DIRECTORY_TO_SHARE "./shared/"
+
+#define DEFAULT_SERVER_COMMAND_LISTENING_PORT 51927
+#define DEFAULT_SERVER_FILE_TRANSMISSION_LISTENING_PORT 2915
+#define DEFAULT_CLIENT_FILE_TRANSMISSION_LISTENING_PORT 62915
+
+#define MAX_NUM_PENDING_CONNECTIONS 1024
+
+#define MAX_NUM_SHARED_FILE_RECORDS 100
+#define MAX_NUM_CONNECTED_CLIENTS 10
+#define MAX_NUM_PARALLEL_DOWNLOADS 5
+
+#define CLIENT_ID_PREFIX_STRING "client"
+
+#define MAX_NUM_COMMAND_TOKENS 3
+
+#define NO_VACANCIES -1
+#define IN_USE 1
+#define VACANT 0

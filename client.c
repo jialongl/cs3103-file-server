@@ -9,49 +9,102 @@
 
 #include <unistd.h>
 #include <signal.h>
+#include <pthread.h>
 
-#include "shared_constants.h"
+#include "constants.h"
 
-int connectionSocket;
+
+int fileTransmissionListenSocket;
+struct sockaddr_in fileTransmissionSockaddr;
+
+RequestedFileInfo infos[MAX_NUM_PARALLEL_DOWNLOADS];
+int numberOfParallelDownloads = 0;
+pthread_mutex_t parallelDownloadsCounterMutex = PTHREAD_MUTEX_INITIALIZER;
+
+int cmdConnectionSocket;
 int serverPort, clientPort;
 char clientIDString[MAX_CLIENT_ID_STRLEN];
 
-char *serverIP;
-struct sockaddr_in serverAddr;
-char senderBuffer[COMMUNICATION_BUFFER_SIZE];
-char receiverBuffer[COMMUNICATION_BUFFER_SIZE];
+char *serverIPString;
+struct sockaddr_in serverSockaddr;
+char cmdSendingBuffer[CMD_BUFFER_SIZE];
+char cmdResultsBuffer[CMD_BUFFER_SIZE];
+
+void* fileSendingBuffer[FILE_TRANSMISSION_BUFFER_SIZE];
+void* fileRecvingBuffer[FILE_TRANSMISSION_BUFFER_SIZE];
+
 
 void willApplicationTerminate() {
 	printf("Client received SIGINT, exiting...\n");
-	close(connectionSocket);
+	close(cmdConnectionSocket);
 	exit(EXIT_CODE_CLEAN);
 }
 
+int nextFileRequestInfoIndexToAllocate() {
+	for (int i=0; i<MAX_NUM_PARALLEL_DOWNLOADS; i++) {
+		if (infos[i].vacant == VACANT)
+			return i;
+	}
+	return NO_VACANCIES;
+}
+
 void connectToServer() {
-	connectionSocket = socket(AF_INET, SOCK_STREAM, 0);
+	cmdConnectionSocket = socket(AF_INET, SOCK_STREAM, 0);
 
-	serverAddr.sin_family = AF_INET;
-	serverAddr.sin_addr.s_addr = inet_addr(serverIP);
-	serverAddr.sin_port = htons(serverPort);
+	serverSockaddr.sin_family = AF_INET;
+	serverSockaddr.sin_addr.s_addr = inet_addr(serverIPString);
+	serverSockaddr.sin_port = htons(serverPort);
 
-	if (connect(connectionSocket,
-				(struct sockaddr*) &serverAddr,
-				sizeof(serverAddr)) == -1) {
+	if (connect(cmdConnectionSocket,
+				(struct sockaddr*) &serverSockaddr,
+				sizeof(serverSockaddr)) == -1) {
 		perror("connect()");
 		exit(EXIT_CODE_ERROR);
 	}
 }
 
 void readClientIDFromServer() {
-	recv(connectionSocket, receiverBuffer, COMMUNICATION_BUFFER_SIZE, 0);
-	sprintf(clientIDString, "%s", receiverBuffer);
-	bzero(receiverBuffer, COMMUNICATION_BUFFER_SIZE);
+	recv(cmdConnectionSocket, cmdResultsBuffer, CMD_BUFFER_SIZE, 0);
+	sprintf(clientIDString, "%s", cmdResultsBuffer);
+	bzero(cmdResultsBuffer, CMD_BUFFER_SIZE);
 }
+
+void* getFileFromRemote(void* fileInfoIndexArg) {
+	int fileInfoIndex = (int) fileInfoIndexArg;
+
+	int dataConnectionSocket = socket(AF_INET, SOCK_STREAM, 0);
+
+	struct sockaddr_in peerSockaddr;
+	peerSockaddr.sin_family = AF_INET;
+	peerSockaddr.sin_addr.s_addr = inet_addr(infos[fileInfoIndex].fileHostIPAddr);
+	peerSockaddr.sin_port = htons(infos[fileInfoIndex].fileHostPort);
+
+	connect(dataConnectionSocket,
+			(struct sockaddr*) &peerSockaddr,
+			sizeof(peerSockaddr));
+
+	// strcpy(fileSendingBuffer, infos[fileIndex].filename);
+	memcpy(fileSendingBuffer, &(infos[fileInfoIndex]), sizeof(RequestedFileInfo));
+	send(dataConnectionSocket, fileSendingBuffer, sizeof(RequestedFileInfo), 0);
+
+	FILE *download = fopen(infos[fileInfoIndex].filename, "w");
+	int numBytesRecved = recv(dataConnectionSocket, fileRecvingBuffer, FILE_TRANSMISSION_BUFFER_SIZE, 0);
+	while(numBytesRecved == FILE_TRANSMISSION_BUFFER_SIZE) {
+		fwrite(fileRecvingBuffer, sizeof(char), FILE_TRANSMISSION_BUFFER_SIZE, download);
+		numBytesRecved = recv(dataConnectionSocket, fileRecvingBuffer, FILE_TRANSMISSION_BUFFER_SIZE, 0);
+	}
+	// write the last block of bits.
+	fwrite(fileRecvingBuffer, sizeof(char), numBytesRecved, download);
+	fclose(download);
+	pthread_exit(NULL);
+}
+
+void* dataConnection();
 
 int main(int argc, char* argv[]) {
 	if (argc == 3) {
 		serverPort = atoi(argv[2]);
-		serverIP = argv[1];
+		serverIPString = argv[1];
 
 	} else {
 		fprintf(stderr, "Wrong number of arguments.\n");
@@ -61,9 +114,18 @@ int main(int argc, char* argv[]) {
 	signal(SIGINT, willApplicationTerminate);
 
 	printf("Initializing client...\n");
+
+	for (int i=0; i<MAX_NUM_PARALLEL_DOWNLOADS; i++)
+		infos[i].vacant = VACANT;
+
+	pthread_t dataConnectionThread;
+	if (pthread_create(&dataConnectionThread, NULL, dataConnection, NULL) != 0)
+		perror("pthread_create() when creating data connection");
+
 	printf("Trying to connect to server and get a client ID...\n");
 	connectToServer();
 	readClientIDFromServer();
+
 	if (strcmp(clientIDString, MSG_ONLY_SUPPORT_IPV4) == 0) {
 		printf(MSG_ONLY_SUPPORT_IPV4);
 		exit(EXIT_CODE_ERROR);
@@ -74,44 +136,60 @@ int main(int argc, char* argv[]) {
 	}
 	else {
 		printf("Client ID: %s.\n", clientIDString);
-		printf("Server: %s#%d\n", serverIP, serverPort);
+		printf("Server: %s#%d\n", serverIPString, serverPort);
 	}
-
-	// gethostname(senderBuffer, COMMUNICATION_BUFFER_SIZE);
-	// struct hostent *host;
-	// host = gethostbyname(senderBuffer);
-
-	// struct in_addr myAddr;
-	// char *myIP;
-	// while (*host->h_addr_list) {
-	// 	bcopy(*host->h_addr_list++, (char *) &myAddr, sizeof(myAddr));
-	// }
-	// myIP = inet_ntoa(myAddr);
-
-	// if (send(connectionSocket, myIP, strlen(myIP), 0) != strlen(myIP)) {
-	// 	fprintf(stderr, "Error: send() sent diff no. of bytes from expected.\n");
-	// 	exit(EXIT_CODE_ERROR);
-	// }
 
 	// start to type commands forever.
-	bzero(senderBuffer, COMMUNICATION_BUFFER_SIZE);
+	bzero(cmdSendingBuffer, CMD_BUFFER_SIZE);
 	printf("> ");
 
-	while (fgets(senderBuffer, COMMUNICATION_BUFFER_SIZE, stdin) != NULL) {
-		// send(connectionSocket, senderBuffer, COMMUNICATION_BUFFER_SIZE, 0);
-		send(connectionSocket, senderBuffer, strlen(senderBuffer), 0); // do not send bytes not inited by user input.
-		bzero(senderBuffer, COMMUNICATION_BUFFER_SIZE);
+	while (fgets(cmdSendingBuffer, CMD_BUFFER_SIZE, stdin) != NULL) {
+		send(cmdConnectionSocket, cmdSendingBuffer, strlen(cmdSendingBuffer), 0); // do not send bytes not inited by user input.
+		short wasDownloadCommand = (strncmp(cmdSendingBuffer, COMMAND_DOWNLOAD_FILE, strlen(COMMAND_DOWNLOAD_FILE)) == 0);
+		bzero(cmdSendingBuffer, CMD_BUFFER_SIZE);
 
-		recv(connectionSocket, receiverBuffer, COMMUNICATION_BUFFER_SIZE, 0);
-		// receiverBuffer[COMMUNICATION_BUFFER_SIZE-1] = '\0';
-		printf("%s> ", receiverBuffer);
-		bzero(receiverBuffer, COMMUNICATION_BUFFER_SIZE);
+		recv(cmdConnectionSocket, cmdResultsBuffer, CMD_BUFFER_SIZE, 0);
+		if (wasDownloadCommand) {
+			// received RequestedFileInfo from server (do not print)
+			int infoIndex = nextFileRequestInfoIndexToAllocate();
+			memcpy(&infos[infoIndex], cmdResultsBuffer, sizeof(RequestedFileInfo));
+			if (strcmp(infos[infoIndex].fileHostIPAddr, "serverip") == 0)
+				strcpy(infos[infoIndex].fileHostIPAddr, serverIPString);
+			pthread_t newFileTransmissionThread;
+			pthread_create(&newFileTransmissionThread, NULL, getFileFromRemote, (void*)infoIndex);
+
+			printf("> ");
+		} else
+			printf("%s> ", cmdResultsBuffer);
+		bzero(cmdResultsBuffer, CMD_BUFFER_SIZE);
 	}
-	printf("I am out!\n");
 
-	senderBuffer[0] = '\0';
-	send(connectionSocket, senderBuffer, strlen(senderBuffer), 0); // send a null string as "FYN"
-	close(connectionSocket);
+	cmdSendingBuffer[0] = '\0';
+	send(cmdConnectionSocket, cmdSendingBuffer, strlen(cmdSendingBuffer), 0); // send a null string as "FYN"
+	close(cmdConnectionSocket);
 
 	return EXIT_CODE_CLEAN;
+}
+
+void* dataConnection() {
+	fileTransmissionListenSocket = socket(AF_INET, SOCK_STREAM, 0);
+
+	fileTransmissionSockaddr.sin_family = AF_INET;
+	fileTransmissionSockaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	fileTransmissionSockaddr.sin_port = htons(DEFAULT_CLIENT_FILE_TRANSMISSION_LISTENING_PORT);
+
+	bind(fileTransmissionListenSocket,
+		 (struct sockaddr *) &fileTransmissionSockaddr,
+		 sizeof(fileTransmissionSockaddr));
+	listen(fileTransmissionListenSocket, MAX_NUM_PENDING_CONNECTIONS);
+
+	socklen_t len = sizeof(struct sockaddr_storage);
+	while (1) {
+		struct sockaddr_storage newPeerSockaddr;
+
+		int newDataConnectionSocket = accept(fileTransmissionListenSocket, (struct sockaddr*) &newPeerSockaddr, &len);
+		printf("new reuqest.\n");
+
+	}
+	pthread_exit(NULL);
 }
