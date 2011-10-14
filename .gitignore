@@ -4,3 +4,4 @@
 fileserver
 client
 *.dSYM/
+shared/
