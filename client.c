@@ -7,6 +7,8 @@
 #include <sys/types.h>
 #include <arpa/inet.h>
 
+#include <dirent.h>
+#include <libgen.h>
 #include <unistd.h>
 #include <signal.h>
 #include <pthread.h>
@@ -72,6 +74,10 @@ void readClientIDFromServer() {
 void* getFileFromRemote(void* fileInfoIndexArg) {
 	int fileInfoIndex = (int) fileInfoIndexArg;
 
+	pthread_mutex_lock(&parallelDownloadsCounterMutex);
+	numberOfParallelDownloads++;
+	pthread_mutex_unlock(&parallelDownloadsCounterMutex);
+
 	int dataConnectionSocket = socket(AF_INET, SOCK_STREAM, 0);
 
 	struct sockaddr_in peerSockaddr;
@@ -83,11 +89,10 @@ void* getFileFromRemote(void* fileInfoIndexArg) {
 			(struct sockaddr*) &peerSockaddr,
 			sizeof(peerSockaddr));
 
-	// strcpy(fileSendingBuffer, infos[fileIndex].filename);
 	memcpy(fileSendingBuffer, &(infos[fileInfoIndex]), sizeof(RequestedFileInfo));
 	send(dataConnectionSocket, fileSendingBuffer, sizeof(RequestedFileInfo), 0);
 
-	FILE *download = fopen(infos[fileInfoIndex].filename, "w");
+	FILE *download = fopen(basename(infos[fileInfoIndex].filename), "w");
 	int numBytesRecved = recv(dataConnectionSocket, fileRecvingBuffer, FILE_TRANSMISSION_BUFFER_SIZE, 0);
 	while(numBytesRecved == FILE_TRANSMISSION_BUFFER_SIZE) {
 		fwrite(fileRecvingBuffer, sizeof(char), FILE_TRANSMISSION_BUFFER_SIZE, download);
@@ -96,7 +101,37 @@ void* getFileFromRemote(void* fileInfoIndexArg) {
 	// write the last block of bits.
 	fwrite(fileRecvingBuffer, sizeof(char), numBytesRecved, download);
 	fclose(download);
+	close(dataConnectionSocket);
+
+	pthread_mutex_lock(&parallelDownloadsCounterMutex);
+	numberOfParallelDownloads--;
+	pthread_mutex_unlock(&parallelDownloadsCounterMutex);
+
 	pthread_exit(NULL);
+}
+
+void registerFilesSharedByThisClient() {
+	DIR *dir;
+	struct dirent *ent;
+	dir = opendir (DEFAULT_DIRECTORY_TO_SHARE);
+	if (dir != NULL) {
+		while ((ent = readdir (dir)) != NULL) {
+			if (strcmp(ent->d_name, "..") == 0 ||
+				strcmp(ent->d_name, ".") == 0)
+				continue;
+
+			bzero(cmdSendingBuffer, CMD_BUFFER_SIZE);
+			sprintf(cmdSendingBuffer, "reg %s%s",
+					DEFAULT_DIRECTORY_TO_SHARE,
+					ent->d_name);
+			send(cmdConnectionSocket, cmdSendingBuffer, strlen(cmdSendingBuffer), 0);
+			recv(cmdConnectionSocket, cmdResultsBuffer, CMD_BUFFER_SIZE, 0);
+		}
+		closedir (dir);
+
+	} else {
+		printf("Can't open directory \"%s\". Therefore, there are no shared files on server.\n", DEFAULT_DIRECTORY_TO_SHARE);
+	}
 }
 
 void* dataConnection();
@@ -125,6 +160,7 @@ int main(int argc, char* argv[]) {
 	printf("Trying to connect to server and get a client ID...\n");
 	connectToServer();
 	readClientIDFromServer();
+	registerFilesSharedByThisClient();
 
 	if (strcmp(clientIDString, MSG_ONLY_SUPPORT_IPV4) == 0) {
 		printf(MSG_ONLY_SUPPORT_IPV4);
@@ -188,8 +224,25 @@ void* dataConnection() {
 		struct sockaddr_storage newPeerSockaddr;
 
 		int newDataConnectionSocket = accept(fileTransmissionListenSocket, (struct sockaddr*) &newPeerSockaddr, &len);
-		printf("new reuqest.\n");
 
+		recv(newDataConnectionSocket, fileSendingBuffer, FILE_TRANSMISSION_BUFFER_SIZE, 0);
+		RequestedFileInfo info;
+		memcpy(&info, fileSendingBuffer, sizeof(RequestedFileInfo));
+
+		FILE *requestedFile = fopen(info.filename, "r");
+
+		int numBytesRead = fread(fileSendingBuffer, sizeof(char), FILE_TRANSMISSION_BUFFER_SIZE, requestedFile);
+
+		while( numBytesRead == FILE_TRANSMISSION_BUFFER_SIZE ) {
+			if( (ferror(requestedFile)) || feof(requestedFile) ) break;
+
+			send(newDataConnectionSocket, fileSendingBuffer, FILE_TRANSMISSION_BUFFER_SIZE, 0);
+			numBytesRead = fread(fileSendingBuffer, sizeof(char), FILE_TRANSMISSION_BUFFER_SIZE, requestedFile);
+		}
+		// send the last bits
+		send(newDataConnectionSocket, fileSendingBuffer, numBytesRead, 0);
+		fclose(requestedFile);
+		close(newDataConnectionSocket);
 	}
 	pthread_exit(NULL);
 }

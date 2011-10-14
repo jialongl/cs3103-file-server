@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 
 #include <dirent.h>
+#include <libgen.h>
 #include <unistd.h>
 #include <signal.h>
 #include <pthread.h>
@@ -130,7 +131,7 @@ void executeFileserverCommandAsClient(int clientIndex) {
 			sprintf(sprintfBuffer, "F%d:\t%s\t%s\n",
 					i,
 					sharedFileRecords[i].owner,
-					sharedFileRecords[i].filename);
+					basename(sharedFileRecords[i].filename));
 			strncat(cmdResultsBuffer, sprintfBuffer, CMD_BUFFER_SIZE);
 		}
 	}
@@ -144,7 +145,7 @@ void executeFileserverCommandAsClient(int clientIndex) {
 				sprintf(sprintfBuffer, "F%d:\t%s\t%s\n",
 						i,
 						sharedFileRecords[i].owner,
-						sharedFileRecords[i].filename);
+						basename(sharedFileRecords[i].filename));
 				strncat(cmdResultsBuffer, sprintfBuffer, CMD_BUFFER_SIZE);
 			}
 		}
@@ -297,7 +298,10 @@ void registerFilesSharedByServer() {
 			} else {
 				sharedFileRecords[fileIndex].vacant = IN_USE;
 				strcpy(sharedFileRecords[fileIndex].owner, "server");
-				strcpy(sharedFileRecords[fileIndex].filename, ent->d_name);
+				sprintf(sharedFileRecords[fileIndex].filename,
+						"%s%s",
+						DEFAULT_DIRECTORY_TO_SHARE,
+						ent->d_name);
 
 				pthread_mutex_lock(&fileRecordsCounterMutex);
 				numberOfRecords++;
@@ -307,7 +311,6 @@ void registerFilesSharedByServer() {
 		closedir (dir);
 
 	} else {
-		/* could not open directory */
 		printf("Can't open directory \"%s\". Therefore, there are no shared files on server.\n", DEFAULT_DIRECTORY_TO_SHARE);
 	}
 }
@@ -442,13 +445,7 @@ void* dataConnection() {
 		RequestedFileInfo info;
 		memcpy(&info, fileSendingBuffer, sizeof(RequestedFileInfo));
 
-		char filepath[MAX_COMMAND_TOKEN_STRLEN];
-		memset(filepath, '\0', sizeof(filepath));
-		strcat(filepath, DEFAULT_DIRECTORY_TO_SHARE);
-		strcat(filepath, info.filename); //, strlen(info.filename));
-
-		printf("filepath=%s", filepath);
-		FILE *requestedFile = fopen(filepath, "r");
+		FILE *requestedFile = fopen(info.filename, "r");
 
 		int numBytesRead = fread(fileSendingBuffer, sizeof(char), FILE_TRANSMISSION_BUFFER_SIZE, requestedFile);
 
