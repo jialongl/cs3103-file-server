@@ -1,0 +1,35 @@
+===== CS3103 programming assignment 1 submission =====
+Name:       Liu Jialong
+Matric #:   U0909122
+GROUP #:    25
+
+
+===================
+A brief explanation
+===================
+client and fileserver both have active-open and passive-listen actions.
+The server starts with 2 listening ports, one for commands/results, one exclusively for file transfers.
+The client starts with listening on 1 port (for file transfer) and actively connecting to server's port for commands/results. It then dynamically creates threads and sockets to pull files when a "get" command is entered.
+
+==================
+Comments to grader
+==================
+I have chosen to implement the following (hopefully correctly) to get bonus points:
+  a) Client can handle multiple simultaneous downloads of different files.
+
+     Implementation:
+     I start a thread for each download, therefore command entering will not be blocked. (client.c:159)
+
+  b) Clients connect directly to  other clients to download the shared
+     files. The clients is listening for connections on a port.
+
+     This port number,  however, is not transmitted to  the server. It
+     is a shared  knowledge in constants.h.  I know  it is not perfect
+     to do so, but I didnt have enough left... :( :p
+
+     When a client wants to download a file located at another client,
+     it obtains the IP address and  port number of the client from the
+     server.
+
+     Implementation:
+     Each client listens on a well-known high port for file requests. (client.c:121,183)
